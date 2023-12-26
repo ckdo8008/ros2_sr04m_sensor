@@ -5,6 +5,8 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <queue>
+#include <numeric> 
 
 using namespace std::chrono_literals;
 
@@ -22,19 +24,6 @@ public:
             rclcpp::shutdown();
         }
 
-        // for (const auto& [name, pins] : sensors_)
-        // {
-        //     // GPIO 설정
-        //     pinMode(pins[0], OUTPUT);
-        //     pinMode(pins[1], INPUT);
-        //     pullUpDnControl(pins[1], PUD_DOWN);
-        //     digitalWrite(pins[0], LOW);
-            
-        //     // 각 센서에 대한 퍼블리셔 초기화
-        //     publishers_[name] = this->create_publisher<sensor_msgs::msg::Range>(name, 10);
-        // }
-
-        // if (sensor_index >= 0 && sensor_index < sensors_.size())
         if (sensor_index >= 0 && sensor_index < static_cast<int>(sensors_.size()))
         {
             auto sensor_it = std::next(sensors_.begin(), sensor_index);
@@ -54,21 +43,15 @@ public:
         {
             RCLCPP_ERROR(this->get_logger(), "Invalid sensor index!");
         }        
-        // timer_ = this->create_wall_timer(100ms, std::bind(&AJ_SR04M_Node::timer_callback, this));
     }
 
 private:
     void timer_callback()
     {
-        // for (const auto& [name, pins] : sensors_)
-        // {
-        //     auto range_msg = get_sensor_data(pins);
-        //     publishers_[name]->publish(range_msg);
-        //     delayMicroseconds(1000);
-        // }
         auto sensor_it = std::next(sensors_.begin(), sensor_index);
         const auto& [name, pins] = *sensor_it;
         auto range_msg = get_sensor_data(pins);
+        // if (range_msg.range != -1.0)
         publisher_->publish(range_msg);        
     }
 
@@ -79,25 +62,43 @@ private:
         int TRIG = pins[0];
         int ECHO = pins[1];
 
+        // RCLCPP_INFO(this->get_logger(), "Read : %s", digitalRead(ECHO) == HIGH ? "true": "false");
+
         digitalWrite(TRIG, LOW);
-        delayMicroseconds(1000);
+        delayMicroseconds(100);
 
         digitalWrite(TRIG, HIGH);
         delayMicroseconds(10);
         digitalWrite(TRIG, LOW);
 
-        long timeout = micros() + 1000000; // 1초 타임아웃
-        while (digitalRead(ECHO) == HIGH && micros() < timeout);
+        long timeout = micros() + 1000000;
+        while (digitalRead(ECHO) == HIGH && micros() < timeout) {
+            // delayMicroseconds(1);
+            rclcpp::sleep_for(std::chrono::microseconds(10));
+        }
 
         long start_time = micros();
-        while (digitalRead(ECHO) == LOW && micros() < timeout);
+        while (digitalRead(ECHO) == LOW && micros() < timeout) {
+            // delayMicroseconds(1);
+            rclcpp::sleep_for(std::chrono::microseconds(10));
+        }
 
         long travel_time = micros() - start_time;
 
         if (travel_time > 0)
         {
-            float distance = 100*((travel_time/1000000.0)*340.29)/2;
+            // float distance = 100*((travel_time/1000000.0)*340.29)/2;
+            float distance = travel_time >> 5;
             range_msg.range = distance; // 센치미터를 미터로 변환
+
+            // distance_values_.push_back(distance);  // 새로운 측정값 추가
+            // if (distance_values_.size() > max_values_) {
+            //     distance_values_.erase(distance_values_.begin());  // 벡터의 처음부터 삭제
+            // }
+
+            // // 벡터에 있는 모든 값의 평균 계산
+            // float avg_distance = std::accumulate(distance_values_.begin(), distance_values_.end(), 0.0) / distance_values_.size();
+            // range_msg.range = avg_distance;            
         }
         else
         {
@@ -125,13 +126,13 @@ private:
     };
 
     int sensor_index = 0;
+    std::vector<float> distance_values_; 
+    size_t max_values_ = 3;
 };
 
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
-    // rclcpp::spin(std::make_shared<AJ_SR04M_Node>());
-    // rclcpp::shutdown();
     auto node = std::make_shared<AJ_SR04M_Node>(); // What is auto??
     rclcpp::executors::SingleThreadedExecutor executor;
     executor.add_node(node);
