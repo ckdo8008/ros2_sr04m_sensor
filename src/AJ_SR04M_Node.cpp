@@ -71,7 +71,7 @@ private:
         delayMicroseconds(10);
         digitalWrite(TRIG, LOW);
 
-        long timeout = micros() + 1000000;
+        long timeout = micros() + 45000;
         while (digitalRead(ECHO) == HIGH && micros() < timeout) {
             // delayMicroseconds(1);
             rclcpp::sleep_for(std::chrono::microseconds(10));
@@ -88,8 +88,11 @@ private:
         if (travel_time > 0)
         {
             // float distance = 100*((travel_time/1000000.0)*340.29)/2;
-            float distance = travel_time >> 5;
+            // float distance = travel_time >> 5;
+            float distance = travel_time * 0.0343 / 2;
             range_msg.range = distance; // 센치미터를 미터로 변환
+            range_msg.max_range = 7.7;
+            range_msg.min_range = 0.02;
 
             // distance_values_.push_back(distance);  // 새로운 측정값 추가
             // if (distance_values_.size() > max_values_) {
